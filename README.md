@@ -19,7 +19,10 @@ Install the project dependencies:
 
 ```bash
 python -m pip install -r requirements.txt
+```
 
 Run the test suite:
 
+```bash
 python -m pytest
+```
