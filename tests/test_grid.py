@@ -35,16 +35,22 @@ def test_set_and_get_cell():
     assert grid.get_cell(1, 2) == CellType.WALL
 
 def test_grid_rejects_out_of_bounds_coordinates():
-    grid = Grid(3, 3)
+    grid = Grid(5, 3)
 
     with pytest.raises(IndexError):
-        grid.get_cell(3, 1)
+        grid.get_cell(5, 1)
 
     with pytest.raises(IndexError):
         grid.get_cell(-1, 1)
 
     with pytest.raises(IndexError):
-        grid.set_cell(3, 1, CellType.WALL)
+        grid.get_cell(1, 3)
 
     with pytest.raises(IndexError):
-        grid.set_cell(1, -1, CellType.WALL)
+        grid.get_cell(1, -1)
+
+    with pytest.raises(IndexError):
+        grid.set_cell(5, 1, CellType.WALL)
+
+    with pytest.raises(IndexError):
+        grid.set_cell(1, 3, CellType.WALL)
