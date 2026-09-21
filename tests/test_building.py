@@ -6,6 +6,7 @@ from backend.simulation.exit import Exit
 
 
 def test_wall_placement_and_removal():
+    # check that placing a wall marks its cell and removing it restores an empty cell
     building = Building(5, 4)
 
     building.place_wall(2, 2)
@@ -18,6 +19,7 @@ def test_wall_placement_and_removal():
 
 
 def test_add_exit():
+    # check that a multi-cell interior exit is registered by id and at each of its cells
     building = Building(6, 5)
 
     bunker_exit = Exit(
@@ -42,6 +44,7 @@ def test_add_exit():
 
 
 def test_remove_exit():
+    # check that removing an exit clears its registration, coordinate lookups, and grid cells
     building = Building(6, 4)
 
     building_exit = Exit(
@@ -70,6 +73,7 @@ def test_remove_exit():
     ],
 )
 def test_building_rejects_invalid_exit_placement(cells):
+    # reject disconnected exit cells, diagonal-only connections, and cells outside the building
     building = Building(6, 4)
 
     building_exit = Exit(
@@ -82,6 +86,7 @@ def test_building_rejects_invalid_exit_placement(cells):
 
 
 def test_building_rejects_duplicate_exit_ids():
+    # reject a reused exit id even when the new exit occupies different cells
     building = Building(6, 4)
 
     building.add_exit(
@@ -101,6 +106,7 @@ def test_building_rejects_duplicate_exit_ids():
 
 
 def test_building_prevents_geometry_overlap():
+    # reject placing an exit on a wall or placing a wall on an exit
     building = Building(6, 4)
 
     building.place_wall(0, 1)

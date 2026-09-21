@@ -1,6 +1,6 @@
+# defines an evacuation exit by its unique id and the grid cells it occupies
 from dataclasses import dataclass
-
-Coordinate = tuple[int, int]
+from .coordinate import Coordinate
 
 @dataclass(frozen=True)
 class Exit:
@@ -9,7 +9,7 @@ class Exit:
     cells: tuple[Coordinate, ...]
 
     def __post_init__(self) -> None:
-        # validate the exit definition
+        # validate the id and cell list after creation; building checks placement and connectivity
         if not self.id.strip():
             raise ValueError("Exit id must not be empty.")
 
