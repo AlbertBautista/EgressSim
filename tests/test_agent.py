@@ -1,6 +1,7 @@
 import pytest
 
 from backend.simulation.agent import AgentSpec
+from backend.simulation.agent import AgentSpec, AgentState
 
 
 def test_agent_spec_creation():
@@ -43,3 +44,42 @@ def test_agent_spec_rejects_invalid_attributes(
             reaction_time=reaction_time,
             known_exit_ids=frozenset()
         )
+
+
+def test_agent_state_is_created_from_spec():
+    # check that runtime state uses the spec's position and exits, with no target, path, or movement progress
+    spec = AgentSpec(
+        id="agent_1",
+        start_position=(2, 3),
+        movement_speed=1.2,
+        reaction_time=3.0,
+        known_exit_ids=frozenset({"exit_1"}),
+    )
+
+    state = AgentState.from_spec(spec)
+
+    assert state.id == "agent_1"
+    assert state.spec == spec
+    assert state.position == (2, 3)
+    assert state.known_exit_ids == {"exit_1"}
+    assert state.target_exit_id is None
+    assert state.path == ()
+    assert state.movement_progress == 0.0
+
+
+def test_agent_state_knowledge_does_not_modify_spec():
+    # check that learning an exit during a run leaves the spec's initial exit knowledge unchanged
+    spec = AgentSpec(
+        id="agent_1",
+        start_position=(2, 3),
+        movement_speed=1.0,
+        reaction_time=0.0,
+        known_exit_ids=frozenset({"exit_1"}),
+    )
+
+    state = AgentState.from_spec(spec)
+
+    state.known_exit_ids.add("exit_2")
+
+    assert state.known_exit_ids == {"exit_1", "exit_2"}
+    assert spec.known_exit_ids == frozenset({"exit_1"})

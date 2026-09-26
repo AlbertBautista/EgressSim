@@ -1,5 +1,6 @@
-# defines the starting configuration of an agent
+# defines the static configuration and changing runtime state of an agent
 from dataclasses import dataclass
+
 from .coordinate import Coordinate
 
 
@@ -12,7 +13,7 @@ class AgentSpec:
     known_exit_ids: frozenset[str]
 
     def __post_init__(self) -> None:
-        # validate the id, speed, and reaction time after creation; scenario checks placement and exits
+        # validate attributes that describe how an agent begins a scenario
         if not self.id.strip():
             raise ValueError("Agent id must not be empty.")
 
@@ -21,3 +22,26 @@ class AgentSpec:
 
         if self.reaction_time < 0:
             raise ValueError("Agent reaction time cannot be negative.")
+
+
+@dataclass
+class AgentState:
+    spec: AgentSpec
+    position: Coordinate
+    known_exit_ids: set[str]
+    target_exit_id: str | None = None
+    path: tuple[Coordinate, ...] = ()
+    movement_progress: float = 0.0
+
+    @classmethod
+    def from_spec(cls, spec: AgentSpec) -> "AgentState":
+        # create fresh mutable state from the agent's scenario definition
+        return cls(
+            spec=spec,
+            position=spec.start_position,
+            known_exit_ids=set(spec.known_exit_ids),
+        )
+
+    @property
+    def id(self) -> str:
+        return self.spec.id
