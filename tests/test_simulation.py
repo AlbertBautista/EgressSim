@@ -4,6 +4,8 @@ from backend.simulation.agent import AgentSpec
 from backend.simulation.building import Building
 from backend.simulation.scenario import Scenario
 from backend.simulation.simulation import Simulation
+from backend.simulation.exit import Exit
+from backend.simulation.movement import MoveProposal
 
 
 def create_scenario():
@@ -107,4 +109,183 @@ def test_simulation_rejects_invalid_timestep():
             scenario=create_scenario(),
             seed=42,
             timestep=-0.5,
+        )
+
+
+# verifies an accepted move updates both agent position and occupancy
+def test_simulation_applies_accepted_move():
+    simulation = Simulation(
+        scenario=create_scenario(),
+        seed=42,
+    )
+
+    resolution = simulation.move_agents(
+        (
+            MoveProposal(
+                agent_id="agent_1",
+                destination=(2, 1),
+            ),
+        )
+    )
+
+    agent = simulation.get_agent("agent_1")
+
+    assert len(resolution.accepted) == 1
+    assert resolution.blocked == ()
+
+    assert agent.position == (2, 1)
+
+    assert not simulation.is_occupied(1, 1)
+    assert simulation.get_occupant_at(2, 1) is agent
+
+
+# verifies moving into a cell occupied at the start of the phase is blocked
+def test_simulation_does_not_apply_blocked_move():
+    building = Building(4, 3)
+
+    scenario = Scenario(
+        building=building,
+        agent_specs=(
+            AgentSpec(
+                id="agent_1",
+                start_position=(1, 1),
+                movement_speed=1.0,
+                reaction_time=0.0,
+                known_exit_ids=frozenset(),
+            ),
+            AgentSpec(
+                id="agent_2",
+                start_position=(2, 1),
+                movement_speed=1.0,
+                reaction_time=0.0,
+                known_exit_ids=frozenset(),
+            ),
+        ),
+        hazard_cells=frozenset(),
+    )
+
+    simulation = Simulation(
+        scenario=scenario,
+        seed=42,
+    )
+
+    proposal = MoveProposal(
+        agent_id="agent_1",
+        destination=(2, 1),
+    )
+
+    resolution = simulation.move_agents((proposal,))
+
+    assert resolution.accepted == ()
+    assert resolution.blocked == (proposal,)
+
+    assert simulation.get_agent("agent_1").position == (1, 1)
+    assert simulation.get_agent("agent_2").position == (2, 1)
+
+    assert simulation.get_occupant_at(1, 1).id == "agent_1"
+    assert simulation.get_occupant_at(2, 1).id == "agent_2"
+
+    
+# verifies entering an exit evacuates the agent and removes active occupancy
+def test_simulation_evacuates_agent_entering_exit():
+    building = Building(4, 3)
+
+    building.add_exit(
+        Exit(
+            id="exit_1",
+            cells=((2, 1),),
+        )
+    )
+
+    scenario = Scenario(
+        building=building,
+        agent_specs=(
+            AgentSpec(
+                id="agent_1",
+                start_position=(1, 1),
+                movement_speed=1.0,
+                reaction_time=0.0,
+                known_exit_ids=frozenset({"exit_1"}),
+            ),
+        ),
+        hazard_cells=frozenset(),
+    )
+
+    simulation = Simulation(
+        scenario=scenario,
+        seed=42,
+    )
+
+    simulation.move_agents(
+        (
+            MoveProposal(
+                agent_id="agent_1",
+                destination=(2, 1),
+            ),
+        )
+    )
+
+    agent = simulation.get_agent("agent_1")
+
+    assert agent.position == (2, 1)
+    assert agent.evacuated
+    assert agent.evacuated_exit_id == "exit_1"
+
+    assert not simulation.is_occupied(1, 1)
+    assert not simulation.is_occupied(2, 1)
+
+
+# verifies movement rejects destinations that are not adjacent or traversable
+def test_simulation_rejects_invalid_move_proposals():
+    building = Building(5, 4)
+
+    building.place_wall(2, 1)
+
+    scenario = Scenario(
+        building=building,
+        agent_specs=(
+            AgentSpec(
+                id="agent_1",
+                start_position=(1, 1),
+                movement_speed=1.0,
+                reaction_time=0.0,
+                known_exit_ids=frozenset(),
+            ),
+        ),
+        hazard_cells=frozenset({(1, 2)}),
+    )
+
+    simulation = Simulation(
+        scenario=scenario,
+        seed=42,
+    )
+
+    with pytest.raises(ValueError):
+        simulation.move_agents(
+            (
+                MoveProposal(
+                    agent_id="agent_1",
+                    destination=(3, 1),
+                ),
+            )
+        )
+
+    with pytest.raises(ValueError):
+        simulation.move_agents(
+            (
+                MoveProposal(
+                    agent_id="agent_1",
+                    destination=(2, 1),
+                ),
+            )
+        )
+
+    with pytest.raises(ValueError):
+        simulation.move_agents(
+            (
+                MoveProposal(
+                    agent_id="agent_1",
+                    destination=(1, 2),
+                ),
+            )
         )

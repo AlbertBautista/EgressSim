@@ -32,6 +32,8 @@ class AgentState:
     target_exit_id: str | None = None
     path: tuple[Coordinate, ...] = ()
     movement_progress: float = 0.0
+    evacuated: bool = False
+    evacuated_exit_id: str | None = None
 
     @classmethod
     def from_spec(cls, spec: AgentSpec) -> "AgentState":

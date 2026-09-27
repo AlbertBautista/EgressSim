@@ -4,6 +4,11 @@ import random
 from .agent import AgentState
 from .coordinate import Coordinate
 from .scenario import Scenario
+from .movement import (
+    MoveProposal,
+    MovementResolution,
+    resolve_move_conflicts,
+)
 
 
 class Simulation:
@@ -58,3 +63,82 @@ class Simulation:
             return None
 
         return self._agents[agent_id]
+
+    def move_agents(
+        self,
+        proposals: tuple[MoveProposal, ...],
+    ) -> MovementResolution:
+        # validate proposed moves before conflict resolution changes runtime state
+        self._validate_move_proposals(proposals)
+
+        resolution = resolve_move_conflicts(
+            proposals=proposals,
+            occupied_cells=frozenset(self._occupancy),
+            rng=self._rng,
+        )
+
+        # remove accepted agents from their old cells before applying new positions
+        for proposal in resolution.accepted:
+            agent = self._agents[proposal.agent_id]
+            del self._occupancy[agent.position]
+
+        for proposal in resolution.accepted:
+            agent = self._agents[proposal.agent_id]
+
+            agent.position = proposal.destination
+
+            building_exit = self.scenario.building.get_exit_at(
+                *proposal.destination
+            )
+
+            if building_exit is not None:
+                agent.evacuated = True
+                agent.evacuated_exit_id = building_exit.id
+                agent.target_exit_id = None
+                agent.path = ()
+                continue
+
+            self._occupancy[proposal.destination] = agent.id
+
+        return resolution
+
+    def _validate_move_proposals(
+        self,
+        proposals: tuple[MoveProposal, ...],
+    ) -> None:
+        seen_agent_ids: set[str] = set()
+
+        for proposal in proposals:
+            if proposal.agent_id in seen_agent_ids:
+                raise ValueError(
+                    "Each agent may submit only one move proposal."
+                )
+
+            seen_agent_ids.add(proposal.agent_id)
+
+            if proposal.agent_id not in self._agents:
+                raise ValueError("Move proposal references an unknown agent.")
+
+            agent = self._agents[proposal.agent_id]
+
+            if agent.evacuated:
+                raise ValueError("Evacuated agents cannot move.")
+
+            # position and occupancy must remain synchronized throughout a run
+            if self._occupancy.get(agent.position) != agent.id:
+                raise RuntimeError(
+                    "Agent position and occupancy are inconsistent."
+                )
+
+            x1, y1 = agent.position
+            x2, y2 = proposal.destination
+
+            if abs(x1 - x2) + abs(y1 - y2) != 1:
+                raise ValueError(
+                    "Agents may only move one cell at a time."
+                )
+
+            if not self.scenario.is_traversable(x2, y2):
+                raise ValueError(
+                    "Agents cannot move into a non-traversable cell."
+                )
