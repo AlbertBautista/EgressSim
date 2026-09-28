@@ -83,3 +83,47 @@ def test_agent_state_knowledge_does_not_modify_spec():
 
     assert state.known_exit_ids == {"exit_1", "exit_2"}
     assert spec.known_exit_ids == frozenset({"exit_1"})
+
+
+# verifies communication likelihood accepts its valid boundary values
+def test_agent_spec_accepts_valid_communication_likelihood():
+    AgentSpec(
+        id="agent_1",
+        start_position=(1, 1),
+        movement_speed=1.0,
+        reaction_time=0.0,
+        known_exit_ids=frozenset(),
+        communication_likelihood=0.0,
+    )
+
+    AgentSpec(
+        id="agent_2",
+        start_position=(2, 1),
+        movement_speed=1.0,
+        reaction_time=0.0,
+        known_exit_ids=frozenset(),
+        communication_likelihood=1.0,
+    )
+
+
+# verifies communication likelihood cannot represent an invalid probability
+def test_agent_spec_rejects_invalid_communication_likelihood():
+    with pytest.raises(ValueError):
+        AgentSpec(
+            id="agent_1",
+            start_position=(1, 1),
+            movement_speed=1.0,
+            reaction_time=0.0,
+            known_exit_ids=frozenset(),
+            communication_likelihood=-0.1,
+        )
+
+    with pytest.raises(ValueError):
+        AgentSpec(
+            id="agent_2",
+            start_position=(2, 1),
+            movement_speed=1.0,
+            reaction_time=0.0,
+            known_exit_ids=frozenset(),
+            communication_likelihood=1.1,
+        )

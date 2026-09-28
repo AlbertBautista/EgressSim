@@ -6,11 +6,13 @@ from .coordinate import Coordinate
 
 @dataclass(frozen=True)
 class AgentSpec:
+
     id: str
     start_position: Coordinate
     movement_speed: float
     reaction_time: float
     known_exit_ids: frozenset[str]
+    communication_likelihood: float = 1.0
 
     def __post_init__(self) -> None:
         # validate attributes that describe how an agent begins a scenario
@@ -22,6 +24,9 @@ class AgentSpec:
 
         if self.reaction_time < 0:
             raise ValueError("Agent reaction time cannot be negative.")
+
+        if not 0.0 <= self.communication_likelihood <= 1.0:
+            raise ValueError("Agent communication likelihood must be between 0 and 1.")
 
 
 @dataclass
