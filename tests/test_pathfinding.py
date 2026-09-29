@@ -1,3 +1,4 @@
+# tests route finding around walls and hazards, including unreachable and multicell exits
 from backend.simulation.building import Building
 from backend.simulation.exit import Exit
 from backend.simulation.pathfinding import find_path

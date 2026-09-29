@@ -1,3 +1,4 @@
+# tests wall and exit placement, removal, and geometry validation
 import pytest
 
 from backend.simulation.building import Building

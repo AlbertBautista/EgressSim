@@ -1,3 +1,4 @@
+# tests simulation initialization, occupancy tracking, move application, and agent evacuation
 import pytest
 
 from backend.simulation.agent import AgentSpec

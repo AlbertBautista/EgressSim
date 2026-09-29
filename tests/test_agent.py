@@ -1,3 +1,4 @@
+# tests agent configuration validation, state creation, and independent exit knowledge
 import pytest
 
 from backend.simulation.agent import AgentSpec

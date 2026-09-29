@@ -1,3 +1,4 @@
+# tests exit creation and rejection of invalid exit definitions
 import pytest
 
 from backend.simulation.exit import Exit

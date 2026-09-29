@@ -1,3 +1,4 @@
+# tests grid creation, cell access, and dimension and coordinate validation
 import pytest
 
 from backend.simulation.cell import CellType

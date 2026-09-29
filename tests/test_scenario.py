@@ -1,3 +1,4 @@
+# tests scenario traversability and validation of hazards, agents, exit knowledge, and alarm timing
 import pytest
 
 from backend.simulation.agent import AgentSpec
