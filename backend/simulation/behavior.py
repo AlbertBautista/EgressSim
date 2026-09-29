@@ -3,6 +3,7 @@ from .agent import AgentState
 from .coordinate import Coordinate
 from .pathfinding import find_path
 from .scenario import Scenario
+from random import Random
 
 
 def is_ready_to_evacuate(
@@ -84,3 +85,63 @@ def plan_route(
     agent.path = path
 
     return True
+
+
+def share_exit_knowledge(
+    agents: tuple[AgentState, ...],
+    rng: Random,
+) -> frozenset[str]:
+    # snapshot knowledge so information cannot cascade through several agents in one phase
+    ordered_agents = sorted(
+        (agent for agent in agents if not agent.evacuated),
+        key=lambda agent: agent.id,
+    )
+
+    knowledge_snapshot = {
+        agent.id: frozenset(agent.known_exit_ids)
+        for agent in ordered_agents
+    }
+
+    learned_exits: dict[str, set[str]] = {}
+
+    for sender in ordered_agents:
+        for recipient in ordered_agents:
+            if sender.id == recipient.id:
+                continue
+
+            if not _are_adjacent(sender.position, recipient.position):
+                continue
+
+            new_exit_ids = (
+                knowledge_snapshot[sender.id]
+                - knowledge_snapshot[recipient.id]
+            )
+
+            if not new_exit_ids:
+                continue
+
+            if rng.random() >= sender.spec.communication_likelihood:
+                continue
+
+            learned_exits.setdefault(
+                recipient.id,
+                set(),
+            ).update(new_exit_ids)
+
+    for agent in ordered_agents:
+        new_exit_ids = learned_exits.get(agent.id)
+
+        if new_exit_ids:
+            agent.known_exit_ids.update(new_exit_ids)
+
+    return frozenset(learned_exits)
+
+
+def _are_adjacent(
+    first: Coordinate,
+    second: Coordinate,
+) -> bool:
+    x1, y1 = first
+    x2, y2 = second
+
+    return abs(x1 - x2) + abs(y1 - y2) == 1

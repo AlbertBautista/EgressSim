@@ -4,14 +4,15 @@ from backend.simulation.building import Building
 from backend.simulation.exit import Exit
 from backend.simulation.scenario import Scenario
 from backend.simulation.behavior import plan_route
-
 from backend.simulation.agent import AgentSpec, AgentState
 from backend.simulation.behavior import (
     can_attempt_move,
     consume_movement_attempt,
     is_ready_to_evacuate,
     update_movement_progress,
+    share_exit_knowledge,
 )
+from random import Random
 
 
 def create_agent(
@@ -206,3 +207,102 @@ def test_agent_has_no_route_without_reachable_known_exit():
 
     assert agent.target_exit_id is None
     assert agent.path == ()
+
+
+def create_agent(
+    agent_id: str = "agent_1",
+    position: tuple[int, int] = (1, 1),
+    movement_speed: float = 1.0,
+    reaction_time: float = 0.0,
+    known_exit_ids: frozenset[str] = frozenset(),
+    communication_likelihood: float = 1.0,
+) -> AgentState:
+    spec = AgentSpec(
+        id=agent_id,
+        start_position=position,
+        movement_speed=movement_speed,
+        reaction_time=reaction_time,
+        known_exit_ids=known_exit_ids,
+        communication_likelihood=communication_likelihood,
+    )
+
+    return AgentState.from_spec(spec)
+
+
+# verifies adjacent agents can share exit knowledge
+def test_adjacent_agents_share_exit_knowledge():
+    sender = create_agent(
+        agent_id="agent_1",
+        position=(1, 1),
+        known_exit_ids=frozenset({"exit_1"}),
+    )
+
+    recipient = create_agent(
+        agent_id="agent_2",
+        position=(2, 1),
+    )
+
+    changed_agents = share_exit_knowledge(
+        agents=(sender, recipient),
+        rng=Random(42),
+    )
+
+    assert recipient.known_exit_ids == {"exit_1"}
+    assert changed_agents == frozenset({"agent_2"})
+
+
+# verifies communication likelihood can prevent otherwise valid communication
+def test_zero_communication_likelihood_prevents_sharing():
+    sender = create_agent(
+        agent_id="agent_1",
+        position=(1, 1),
+        known_exit_ids=frozenset({"exit_1"}),
+        communication_likelihood=0.0,
+    )
+
+    recipient = create_agent(
+        agent_id="agent_2",
+        position=(2, 1),
+    )
+
+    changed_agents = share_exit_knowledge(
+        agents=(sender, recipient),
+        rng=Random(42),
+    )
+
+    assert recipient.known_exit_ids == set()
+    assert changed_agents == frozenset()
+
+
+# verifies newly learned information cannot cascade through several agents in one phase
+def test_communication_does_not_cascade_in_same_phase():
+    first = create_agent(
+        agent_id="agent_1",
+        position=(1, 1),
+        known_exit_ids=frozenset({"exit_1"}),
+    )
+
+    second = create_agent(
+        agent_id="agent_2",
+        position=(2, 1),
+    )
+
+    third = create_agent(
+        agent_id="agent_3",
+        position=(3, 1),
+    )
+
+    share_exit_knowledge(
+        agents=(first, second, third),
+        rng=Random(42),
+    )
+
+    assert second.known_exit_ids == {"exit_1"}
+    assert third.known_exit_ids == set()
+
+    share_exit_knowledge(
+        agents=(first, second, third),
+        rng=Random(42),
+    )
+
+    assert third.known_exit_ids == {"exit_1"}
