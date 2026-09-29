@@ -6,11 +6,14 @@ from backend.simulation.scenario import Scenario
 from backend.simulation.behavior import plan_route
 from backend.simulation.agent import AgentSpec, AgentState
 from backend.simulation.behavior import (
+    advance_route,
     can_attempt_move,
     consume_movement_attempt,
+    create_move_proposal,
     is_ready_to_evacuate,
-    update_movement_progress,
+    plan_route,
     share_exit_knowledge,
+    update_movement_progress,
 )
 from random import Random
 
@@ -306,3 +309,102 @@ def test_communication_does_not_cascade_in_same_phase():
     )
 
     assert third.known_exit_ids == {"exit_1"}
+
+
+# verifies an agent with enough movement progress proposes the next cell in its route
+def test_agent_proposes_next_route_cell():
+    agent = create_agent(
+        agent_id="agent_1",
+        position=(1, 1),
+    )
+
+    agent.path = (
+        (1, 1),
+        (2, 1),
+        (3, 1),
+    )
+    agent.movement_progress = 1.0
+
+    proposal = create_move_proposal(agent)
+
+    assert proposal is not None
+    assert proposal.agent_id == "agent_1"
+    assert proposal.destination == (2, 1)
+
+    # proposal creation should not apply or consume the move itself
+    assert agent.position == (1, 1)
+    assert agent.path == (
+        (1, 1),
+        (2, 1),
+        (3, 1),
+    )
+    assert agent.movement_progress == 1.0
+
+
+# verifies an agent cannot propose movement before enough progress has accumulated
+def test_agent_does_not_propose_move_without_enough_progress():
+    agent = create_agent(
+        position=(1, 1),
+    )
+
+    agent.path = (
+        (1, 1),
+        (2, 1),
+    )
+    agent.movement_progress = 0.5
+
+    assert create_move_proposal(agent) is None
+
+
+# verifies an agent without a usable route cannot submit a movement proposal
+def test_agent_does_not_propose_move_without_route():
+    agent = create_agent(
+        position=(1, 1),
+    )
+
+    agent.movement_progress = 1.0
+
+    assert create_move_proposal(agent) is None
+
+
+# verifies a completed move advances the stored route to the agent's new position
+def test_successful_move_advances_agent_route():
+    agent = create_agent(
+        position=(1, 1),
+    )
+
+    agent.path = (
+        (1, 1),
+        (2, 1),
+        (3, 1),
+    )
+
+    # simulation movement updates the position before behavior advances the route
+    agent.position = (2, 1)
+
+    advance_route(
+        agent,
+        destination=(2, 1),
+    )
+
+    assert agent.path == (
+        (2, 1),
+        (3, 1),
+    )
+
+
+# verifies movement proposals detect when an agent's route no longer starts at its position
+def test_agent_rejects_inconsistent_route():
+    agent = create_agent(
+        position=(2, 1),
+    )
+
+    agent.path = (
+        (1, 1),
+        (2, 1),
+        (3, 1),
+    )
+    agent.movement_progress = 1.0
+
+    with pytest.raises(RuntimeError):
+        create_move_proposal(agent)

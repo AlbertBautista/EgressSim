@@ -4,6 +4,7 @@ from .coordinate import Coordinate
 from .pathfinding import find_path
 from .scenario import Scenario
 from random import Random
+from .movement import MoveProposal
 
 
 def is_ready_to_evacuate(
@@ -145,3 +146,53 @@ def _are_adjacent(
     x2, y2 = second
 
     return abs(x1 - x2) + abs(y1 - y2) == 1
+
+
+def create_move_proposal(
+    agent: AgentState,
+) -> MoveProposal | None:
+    # create a proposal for the next route cell when the agent is ready to move
+    if agent.evacuated:
+        return None
+
+    if not can_attempt_move(agent):
+        return None
+
+    if len(agent.path) < 2:
+        return None
+
+    if agent.path[0] != agent.position:
+        raise RuntimeError(
+            "Agent position and path are inconsistent."
+        )
+
+    return MoveProposal(
+        agent_id=agent.id,
+        destination=agent.path[1],
+    )
+
+
+def advance_route(
+    agent: AgentState,
+    destination: Coordinate,
+) -> None:
+    # remove the completed path step after an accepted move
+    if agent.evacuated:
+        return
+
+    if len(agent.path) < 2:
+        raise RuntimeError(
+            "Agent does not have a route step to complete."
+        )
+
+    if agent.path[1] != destination:
+        raise RuntimeError(
+            "Accepted destination does not match the agent route."
+        )
+
+    if agent.position != destination:
+        raise RuntimeError(
+            "Agent position was not updated to the accepted destination."
+        )
+
+    agent.path = agent.path[1:]
