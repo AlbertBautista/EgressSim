@@ -31,6 +31,7 @@ class AgentSpec:
 
 @dataclass
 class AgentState:
+    
     spec: AgentSpec
     position: Coordinate
     known_exit_ids: set[str]
@@ -39,6 +40,7 @@ class AgentState:
     movement_progress: float = 0.0
     evacuated: bool = False
     evacuated_exit_id: str | None = None
+    route_needs_update: bool = True
 
     @classmethod
     def from_spec(cls, spec: AgentSpec) -> "AgentState":

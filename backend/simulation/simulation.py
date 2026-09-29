@@ -9,6 +9,15 @@ from .movement import (
     MovementResolution,
     resolve_move_conflicts,
 )
+from .behavior import (
+    advance_route,
+    consume_movement_attempt,
+    create_move_proposal,
+    is_ready_to_evacuate,
+    plan_route,
+    share_exit_knowledge,
+    update_movement_progress,
+)
 
 
 class Simulation:
@@ -21,11 +30,19 @@ class Simulation:
     ):
         if timestep <= 0:
             raise ValueError("Simulation timestep must be positive.")
+        
+        for spec in scenario.agent_specs:
+            if spec.movement_speed * timestep > 1.0:
+                raise ValueError(
+                    "Agent movement speed is too high for the simulation timestep."
+                )
 
         self.scenario = scenario
         self.seed = seed
         self.timestep = timestep
         self.time = 0.0
+
+        self._alarm_activated_at: float | None = None
 
         # one seeded random source keeps runtime randomness reproducible
         self._rng = random.Random(seed)
@@ -142,3 +159,109 @@ class Simulation:
                 raise ValueError(
                     "Agents cannot move into a non-traversable cell."
                 )
+
+
+    @property
+    def alarm_activated_at(self) -> float | None:
+        return self._alarm_activated_at
+
+    @property
+    def alarm_active(self) -> bool:
+        return self._alarm_activated_at is not None
+
+    def trigger_alarm(self) -> None:
+        # allow a manual alarm to activate at the current simulation time
+        if self._alarm_activated_at is None:
+            self._alarm_activated_at = self.time
+
+    def _activate_scheduled_alarm_if_due(self) -> None:
+        if self._alarm_activated_at is not None:
+            return
+
+        alarm_time = self.scenario.alarm_time
+
+        if alarm_time is None:
+            return
+
+        if self.time >= alarm_time:
+            self._alarm_activated_at = alarm_time
+    
+
+    def step(self) -> MovementResolution:
+        # process one fixed interval of simulation behavior and movement
+        self._activate_scheduled_alarm_if_due()
+
+        if not self.alarm_active:
+            self.time += self.timestep
+
+            return MovementResolution(
+                accepted=(),
+                blocked=(),
+            )
+
+        active_agents = tuple(
+            agent
+            for agent in self._agents.values()
+            if not agent.evacuated
+        )
+
+        changed_agent_ids = share_exit_knowledge(
+            agents=active_agents,
+            rng=self._rng,
+        )
+
+        # newly learned exit information may change an agent's best route
+        for agent_id in changed_agent_ids:
+            self._agents[agent_id].route_needs_update = True
+
+        proposals: list[MoveProposal] = []
+
+        for agent in active_agents:
+            if not is_ready_to_evacuate(
+                agent=agent,
+                current_time=self.time,
+                alarm_activated_at=self._alarm_activated_at,
+            ):
+                continue
+
+            if agent.route_needs_update:
+                plan_route(
+                    agent=agent,
+                    scenario=self.scenario,
+                )
+
+                agent.route_needs_update = False
+
+            # no usable route means no movement progress should accumulate
+            if len(agent.path) < 2:
+                continue
+
+            update_movement_progress(
+                agent=agent,
+                timestep=self.timestep,
+            )
+
+            proposal = create_move_proposal(agent)
+
+            if proposal is None:
+                continue
+
+            # attempting movement consumes credit whether the move succeeds or fails
+            consume_movement_attempt(agent)
+
+            proposals.append(proposal)
+
+        resolution = self.move_agents(tuple(proposals))
+
+        for proposal in resolution.accepted:
+            agent = self._agents[proposal.agent_id]
+
+            if not agent.evacuated:
+                advance_route(
+                    agent=agent,
+                    destination=proposal.destination,
+                )
+
+        self.time += self.timestep
+
+        return resolution

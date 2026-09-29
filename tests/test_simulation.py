@@ -290,3 +290,189 @@ def test_simulation_rejects_invalid_move_proposals():
                 ),
             )
         )
+
+
+# verifies one simulation step coordinates routing, movement, and time progression
+def test_step_moves_ready_agent():
+    building = Building(5, 3)
+
+    building.add_exit(
+        Exit(
+            id="exit_1",
+            cells=((4, 1),),
+        )
+    )
+
+    spec = AgentSpec(
+        id="agent_1",
+        start_position=(1, 1),
+        movement_speed=2.0,
+        reaction_time=0.0,
+        known_exit_ids=frozenset({"exit_1"}),
+    )
+
+    scenario = Scenario(
+        building=building,
+        agent_specs=(spec,),
+        hazard_cells=frozenset(),
+        alarm_time=0.0,
+    )
+
+    simulation = Simulation(
+        scenario=scenario,
+        seed=42,
+        timestep=0.5,
+    )
+
+    simulation.step()
+
+    agent = simulation.get_agent("agent_1")
+
+    assert agent.position == (2, 1)
+    assert agent.path[0] == (2, 1)
+    assert simulation.time == pytest.approx(0.5)
+
+
+# verifies an agent remains stationary until its reaction delay has passed
+def test_step_respects_agent_reaction_time():
+    building = Building(5, 3)
+
+    building.add_exit(
+        Exit(
+            id="exit_1",
+            cells=((4, 1),),
+        )
+    )
+
+    spec = AgentSpec(
+        id="agent_1",
+        start_position=(1, 1),
+        movement_speed=2.0,
+        reaction_time=1.0,
+        known_exit_ids=frozenset({"exit_1"}),
+    )
+
+    scenario = Scenario(
+        building=building,
+        agent_specs=(spec,),
+        hazard_cells=frozenset(),
+        alarm_time=0.0,
+    )
+
+    simulation = Simulation(
+        scenario=scenario,
+        seed=42,
+        timestep=0.5,
+    )
+
+    simulation.step()
+    simulation.step()
+
+    assert simulation.get_agent("agent_1").position == (1, 1)
+
+    simulation.step()
+
+    assert simulation.get_agent("agent_1").position == (2, 1)
+
+
+# verifies an agent cannot accumulate movement credit while waiting without a route
+def test_step_does_not_accumulate_progress_without_route():
+    building = Building(5, 3)
+
+    spec = AgentSpec(
+        id="agent_1",
+        start_position=(1, 1),
+        movement_speed=2.0,
+        reaction_time=0.0,
+        known_exit_ids=frozenset(),
+    )
+
+    scenario = Scenario(
+        building=building,
+        agent_specs=(spec,),
+        hazard_cells=frozenset(),
+        alarm_time=0.0,
+    )
+
+    simulation = Simulation(
+        scenario=scenario,
+        seed=42,
+        timestep=0.5,
+    )
+
+    simulation.step()
+    simulation.step()
+    simulation.step()
+
+    agent = simulation.get_agent("agent_1")
+
+    assert agent.position == (1, 1)
+    assert agent.movement_progress == pytest.approx(0.0)
+
+
+# verifies a scenario without a scheduled alarm can be started manually
+def test_manual_alarm_starts_evacuation():
+    building = Building(5, 3)
+
+    building.add_exit(
+        Exit(
+            id="exit_1",
+            cells=((4, 1),),
+        )
+    )
+
+    spec = AgentSpec(
+        id="agent_1",
+        start_position=(1, 1),
+        movement_speed=2.0,
+        reaction_time=0.0,
+        known_exit_ids=frozenset({"exit_1"}),
+    )
+
+    scenario = Scenario(
+        building=building,
+        agent_specs=(spec,),
+        hazard_cells=frozenset(),
+        alarm_time=None,
+    )
+
+    simulation = Simulation(
+        scenario=scenario,
+        seed=42,
+        timestep=0.5,
+    )
+
+    simulation.step()
+
+    assert simulation.get_agent("agent_1").position == (1, 1)
+
+    simulation.trigger_alarm()
+    simulation.step()
+
+    assert simulation.get_agent("agent_1").position == (2, 1)
+
+
+# verifies the timestep rejects speeds that cannot be represented by one move per tick
+def test_simulation_rejects_speed_too_high_for_timestep():
+    building = Building(4, 3)
+
+    spec = AgentSpec(
+        id="agent_1",
+        start_position=(1, 1),
+        movement_speed=2.1,
+        reaction_time=0.0,
+        known_exit_ids=frozenset(),
+    )
+
+    scenario = Scenario(
+        building=building,
+        agent_specs=(spec,),
+        hazard_cells=frozenset(),
+    )
+
+    with pytest.raises(ValueError):
+        Simulation(
+            scenario=scenario,
+            seed=42,
+            timestep=0.5,
+        )
