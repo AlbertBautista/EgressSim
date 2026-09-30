@@ -44,6 +44,7 @@ class Simulation:
 
         self._alarm_activated_at: float | None = None
         self._termination_reason: str | None = None
+        self._blocked_movement_attempts = 0
 
         # one seeded random source keeps runtime randomness reproducible
         self._rng = random.Random(seed)
@@ -257,6 +258,9 @@ class Simulation:
 
         resolution = self.move_agents(tuple(proposals))
 
+        # blocked movement attempts provide the runtime basis for congestion metrics
+        self._blocked_movement_attempts += len(resolution.blocked)
+
         for proposal in resolution.accepted:
             agent = self._agents[proposal.agent_id]
 
@@ -303,3 +307,8 @@ class Simulation:
                 return
 
         self._termination_reason = "max_time"
+
+
+    @property
+    def blocked_movement_attempts(self) -> int:
+        return self._blocked_movement_attempts

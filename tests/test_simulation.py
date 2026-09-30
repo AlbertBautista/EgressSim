@@ -612,3 +612,56 @@ def test_step_respects_reaction_time_for_communication():
     simulation.step()
 
     assert simulation.get_agent("agent_2").known_exit_ids == set()
+
+
+# verifies blocked movement conflicts are counted as congestion
+def test_step_tracks_blocked_movement_attempts():
+    building = Building(5, 4)
+
+    building.place_wall(0, 0)
+    building.place_wall(2, 0)
+
+    building.place_wall(0, 2)
+    building.place_wall(2, 2)
+    building.place_wall(1, 3)
+
+    building.add_exit(
+        Exit(
+            id="exit_1",
+            cells=((4, 1),),
+        )
+    )
+
+    agents = (
+        AgentSpec(
+            id="agent_1",
+            start_position=(1, 0),
+            movement_speed=2.0,
+            reaction_time=0.0,
+            known_exit_ids=frozenset({"exit_1"}),
+        ),
+        AgentSpec(
+            id="agent_2",
+            start_position=(1, 2),
+            movement_speed=2.0,
+            reaction_time=0.0,
+            known_exit_ids=frozenset({"exit_1"}),
+        ),
+    )
+
+    scenario = Scenario(
+        building=building,
+        agent_specs=agents,
+        hazard_cells=frozenset(),
+        alarm_time=0.0,
+    )
+
+    simulation = Simulation(
+        scenario=scenario,
+        seed=42,
+        timestep=0.5,
+    )
+
+    simulation.step()
+
+    assert simulation.blocked_movement_attempts == 1
