@@ -129,3 +129,27 @@ def test_building_prevents_geometry_overlap():
 
     with pytest.raises(ValueError):
         building.place_wall(5, 1)
+
+
+# verifies connected exit shapes with corners are allowed
+def test_building_allows_connected_exit_shapes_with_corners():
+    building = Building(6, 6)
+
+    exit_shape = Exit(
+        id="exit_1",
+        cells=(
+            (1, 1),
+            (2, 1),
+            (3, 1),
+            (1, 2),
+            (1, 3),
+        ),
+    )
+
+    building.add_exit(exit_shape)
+
+    assert building.get_exit("exit_1") == exit_shape
+
+    for x, y in exit_shape.cells:
+        assert building.get_cell(x, y) == CellType.EXIT
+        assert building.get_exit_at(x, y) == exit_shape
