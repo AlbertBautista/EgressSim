@@ -18,6 +18,7 @@ from .behavior import (
     share_exit_knowledge,
     update_movement_progress,
 )
+from .results import SimulationResult
 
 
 class Simulation:
@@ -272,6 +273,10 @@ class Simulation:
 
         self.time += self.timestep
 
+        # record termination when manual stepping completes the evacuation
+        if self.all_agents_evacuated:
+            self._termination_reason = "all_evacuated"
+
         return resolution
 
 
@@ -312,3 +317,45 @@ class Simulation:
     @property
     def blocked_movement_attempts(self) -> int:
         return self._blocked_movement_attempts
+    
+
+    def get_result(self) -> SimulationResult:
+        # build the final metrics only after the simulation has terminated
+        if self._termination_reason is None:
+            raise RuntimeError(
+                "Simulation must terminate before results can be generated."
+            )
+
+        evacuated_agents = sum(
+            agent.evacuated
+            for agent in self._agents.values()
+        )
+
+        total_agents = len(self._agents)
+
+        exit_usage = {
+            building_exit.id: 0
+            for building_exit in self.scenario.building.exits
+        }
+
+        for agent in self._agents.values():
+            if agent.evacuated_exit_id is not None:
+                exit_usage[agent.evacuated_exit_id] += 1
+
+        total_evacuation_time = (
+            self.time
+            if self.all_agents_evacuated
+            else None
+        )
+
+        return SimulationResult(
+            total_agents=total_agents,
+            evacuated_agents=evacuated_agents,
+            remaining_agents=total_agents - evacuated_agents,
+            elapsed_time=self.time,
+            total_evacuation_time=total_evacuation_time,
+            exit_usage=exit_usage,
+            blocked_movement_attempts=self._blocked_movement_attempts,
+            termination_reason=self._termination_reason,
+            seed=self.seed,
+        )
