@@ -476,3 +476,139 @@ def test_simulation_rejects_speed_too_high_for_timestep():
             seed=42,
             timestep=0.5,
         )
+
+
+# verifies run continues stepping until every agent has evacuated
+def test_run_stops_when_all_agents_evacuate():
+    building = Building(5, 3)
+
+    building.add_exit(
+        Exit(
+            id="exit_1",
+            cells=((3, 1),),
+        )
+    )
+
+    spec = AgentSpec(
+        id="agent_1",
+        start_position=(1, 1),
+        movement_speed=2.0,
+        reaction_time=0.0,
+        known_exit_ids=frozenset({"exit_1"}),
+    )
+
+    scenario = Scenario(
+        building=building,
+        agent_specs=(spec,),
+        hazard_cells=frozenset(),
+        alarm_time=0.0,
+    )
+
+    simulation = Simulation(
+        scenario=scenario,
+        seed=42,
+        timestep=0.5,
+    )
+
+    simulation.run(max_time=10.0)
+
+    agent = simulation.get_agent("agent_1")
+
+    assert agent.evacuated
+    assert agent.evacuated_exit_id == "exit_1"
+    assert simulation.all_agents_evacuated
+    assert simulation.termination_reason == "all_evacuated"
+    assert simulation.time == pytest.approx(1.0)
+
+
+# verifies run stops at the time limit when evacuation cannot finish
+def test_run_stops_at_maximum_time():
+    building = Building(5, 3)
+
+    spec = AgentSpec(
+        id="agent_1",
+        start_position=(1, 1),
+        movement_speed=1.0,
+        reaction_time=0.0,
+        known_exit_ids=frozenset(),
+    )
+
+    scenario = Scenario(
+        building=building,
+        agent_specs=(spec,),
+        hazard_cells=frozenset(),
+        alarm_time=0.0,
+    )
+
+    simulation = Simulation(
+        scenario=scenario,
+        seed=42,
+        timestep=0.5,
+    )
+
+    simulation.run(max_time=2.0)
+
+    assert not simulation.all_agents_evacuated
+    assert simulation.termination_reason == "max_time"
+    assert simulation.time == pytest.approx(2.0)
+
+
+# verifies run rejects a non-positive simulation time limit
+def test_run_rejects_invalid_maximum_time():
+    simulation = Simulation(
+        scenario=create_scenario(),
+        seed=42,
+    )
+
+    with pytest.raises(ValueError):
+        simulation.run(max_time=0.0)
+
+    with pytest.raises(ValueError):
+        simulation.run(max_time=-1.0)
+
+
+# verifies agents do not communicate until their reaction delays have passed
+def test_step_respects_reaction_time_for_communication():
+    building = Building(5, 3)
+
+    building.add_exit(
+        Exit(
+            id="exit_1",
+            cells=((4, 1),),
+        )
+    )
+
+    informed_agent = AgentSpec(
+        id="agent_1",
+        start_position=(1, 1),
+        movement_speed=0.1,
+        reaction_time=0.0,
+        known_exit_ids=frozenset({"exit_1"}),
+        communication_likelihood=1.0,
+    )
+
+    waiting_agent = AgentSpec(
+        id="agent_2",
+        start_position=(2, 1),
+        movement_speed=0.1,
+        reaction_time=2.0,
+        known_exit_ids=frozenset(),
+        communication_likelihood=1.0,
+    )
+
+    scenario = Scenario(
+        building=building,
+        agent_specs=(informed_agent, waiting_agent),
+        hazard_cells=frozenset(),
+        alarm_time=0.0,
+    )
+
+    simulation = Simulation(
+        scenario=scenario,
+        seed=42,
+        timestep=0.5,
+    )
+
+    simulation.step()
+
+    assert simulation.get_agent("agent_2").known_exit_ids == set()

@@ -43,6 +43,7 @@ class Simulation:
         self.time = 0.0
 
         self._alarm_activated_at: float | None = None
+        self._termination_reason: str | None = None
 
         # one seeded random source keeps runtime randomness reproducible
         self._rng = random.Random(seed)
@@ -205,8 +206,18 @@ class Simulation:
             if not agent.evacuated
         )
 
+        ready_agents = tuple(
+            agent
+            for agent in active_agents
+            if is_ready_to_evacuate(
+                agent=agent,
+                current_time=self.time,
+                alarm_activated_at=self._alarm_activated_at,
+            )
+        )
+
         changed_agent_ids = share_exit_knowledge(
-            agents=active_agents,
+            agents=ready_agents,
             rng=self._rng,
         )
 
@@ -216,14 +227,7 @@ class Simulation:
 
         proposals: list[MoveProposal] = []
 
-        for agent in active_agents:
-            if not is_ready_to_evacuate(
-                agent=agent,
-                current_time=self.time,
-                alarm_activated_at=self._alarm_activated_at,
-            ):
-                continue
-
+        for agent in ready_agents:
             if agent.route_needs_update:
                 plan_route(
                     agent=agent,
@@ -265,3 +269,37 @@ class Simulation:
         self.time += self.timestep
 
         return resolution
+
+
+    @property
+    def all_agents_evacuated(self) -> bool:
+        return all(
+            agent.evacuated
+            for agent in self._agents.values()
+        )
+
+
+    @property
+    def termination_reason(self) -> str | None:
+        return self._termination_reason
+    
+
+    def run(self, max_time: float = 300.0) -> None:
+        # run complete simulation steps until everyone evacuates or the time limit is reached
+        if max_time <= 0:
+            raise ValueError("Maximum simulation time must be positive.")
+
+        self._termination_reason = None
+
+        if self.all_agents_evacuated:
+            self._termination_reason = "all_evacuated"
+            return
+
+        while self.time + self.timestep <= max_time:
+            self.step()
+
+            if self.all_agents_evacuated:
+                self._termination_reason = "all_evacuated"
+                return
+
+        self._termination_reason = "max_time"
